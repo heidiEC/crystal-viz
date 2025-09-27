@@ -1,0 +1,439 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Crystal Formation Network</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: Arial, sans-serif;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+            color: white;
+            overflow: hidden;
+        }
+
+        .container {
+            width: 100vw;
+            height: 100vh;
+            position: relative;
+        }
+
+        .header {
+            position: absolute;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            text-align: center;
+            z-index: 1000;
+            background: rgba(0, 0, 0, 0.8);
+            padding: 15px 30px;
+            border-radius: 10px;
+            border: 2px solid #4a90e2;
+        }
+
+        .specimen-panel {
+            position: absolute;
+            bottom: 20px;
+            right: 20px;
+            /* Moved to bottom right */
+            background: rgba(0, 0, 0, 0.9);
+            padding: 10px;
+            /* Made more compact */
+            border-radius: 10px;
+            border: 1px solid #ffd700;
+            max-width: 250px;
+            /* Made more compact */
+            z-index: 1000;
+            font-size: 11px;
+            /* Made more compact */
+        }
+
+        .legend {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            background: rgba(0, 0, 0, 0.9);
+            padding: 15px;
+            border-radius: 10px;
+            border: 1px solid #666;
+            z-index: 1000;
+            font-size: 12px;
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+            margin: 5px 0;
+        }
+
+        .legend-dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            margin-right: 8px;
+        }
+
+        #network-svg {
+            width: 100%;
+            height: 100%;
+        }
+
+        .node {
+            stroke: white;
+            stroke-width: 2;
+            cursor: pointer;
+        }
+
+        .link {
+            stroke: #999;
+            stroke-opacity: 0.6;
+        }
+
+        .node-label {
+            font-size: 10px;
+            font-weight: bold;
+            text-anchor: middle;
+            fill: white;
+            pointer-events: none;
+        }
+
+        .tooltip {
+            position: absolute;
+            background: rgba(0, 0, 0, 0.95);
+            border: 1px solid #4a90e2;
+            border-radius: 5px;
+            padding: 10px;
+            pointer-events: none;
+            z-index: 2000;
+            max-width: 300px;
+            font-size: 12px;
+            line-height: 1.4;
+        }
+
+        @media (max-width: 768px) {
+
+            .info-panel,
+            .specimen-panel,
+            .legend {
+                display: none;
+            }
+
+            .header {
+                position: relative;
+                transform: none;
+                left: 0;
+                width: auto;
+                border-radius: 0;
+                border-left: none;
+                border-right: none;
+                border-top: none;
+                padding: 10px;
+                /* More compact header */
+            }
+
+            .node-label {
+                display: none;
+                /* Hide labels on mobile to reduce clutter */
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Crystal Formation Network</h1>
+            <p>Geological Formation Pathways - Christian's Collection</p>
+        </div>
+
+        <div class="specimen-panel">
+            <h4>Collection Specimens</h4>
+            <div style="margin: 8px 0; padding: 8px; background: rgba(255,255,255,0.1); border-radius: 5px;">
+                <strong>Hematite-Quartz</strong><br>
+                SiO₂ + Fe₂O₃ • Orange River, S. Africa • $275
+            </div>
+            <div style="margin: 8px 0; padding: 8px; background: rgba(255,255,255,0.1); border-radius: 5px;">
+                <strong>Green Fluorite</strong><br>
+                CaF₂ • Okorusu Mine, Namibia • $600
+            </div>
+            <div style="margin: 8px 0; padding: 8px; background: rgba(255,255,255,0.1); border-radius: 5px;">
+                <strong>Purple Fluorite</strong><br>
+                CaF₂ • Múzquiz, Mexico • $160
+            </div>
+            <div style="margin: 8px 0; padding: 8px; background: rgba(255,255,255,0.1); border-radius: 5px;">
+                <strong>Epidote & Quartz</strong><br>
+                Ca₂(Al,Fe)₃(SiO₄)₃(OH) • Hakkari, Turkey • $150
+            </div>
+        </div>
+
+        <div class="legend">
+            <h4>Node Types</h4>
+            <div class="legend-item">
+                <div class="legend-dot" style="background-color: #ff6b6b;"></div>
+                <span>Mine Locations</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-dot" style="background-color: #4ecdc4;"></div>
+                <span>Crystal Types</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-dot" style="background-color: #ffe66d;"></div>
+                <span>Formation Processes</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-dot" style="background-color: #a8e6cf;"></div>
+                <span>Associated Minerals</span>
+            </div>
+        </div>
+
+        <svg id="network-svg"></svg>
+    </div>
+
+    <svg width="0" height="0" style="position:absolute;">
+        <defs>
+            <filter id="glow" x="-50%" y="-50%" width="200%" height="200%">
+                <feGaussianBlur stdDeviation="3.5" result="coloredBlur" />
+                <feMerge>
+                    <feMergeNode in="coloredBlur" />
+                    <feMergeNode in="SourceGraphic" />
+                </feMerge>
+            </filter>
+        </defs>
+    </svg>
+
+    <script>
+        // Simplified but comprehensive network data
+        const nodes = [
+            // Locations
+            { id: "orange_river", name: "Orange River\nS. Africa", type: "location", group: 1, description: "Part of an ancient cratonic region. The quartz here formed in a hydrothermal environment where silica-rich fluids incorporated iron from surrounding rock, creating the famous hematite-included 'Tangerine Quartz'." },
+            { id: "okorusu", name: "Okorusu\nNamibia", type: "location", group: 1, description: "A famous fluorite locality associated with a carbonatite complex. Hot, mineral-rich fluids deposited fluorite in fractures, with local trace elements creating the signature vibrant green color." },
+            { id: "muzquiz", name: "Múzquiz\nMexico", type: "location", group: 1, description: "World-renowned for deep purple fluorite formed in low-temperature hydrothermal veins. The specific trace elements (like yttrium) or natural radiation in this area create the prized purple hue." },
+            { id: "hakkari", name: "Hakkari\nTurkey", type: "location", group: 1, description: "A mountainous region with skarn deposits that produce exceptional epidote crystals. The regional metamorphism creates ideal conditions for large, lustrous, and often doubly-terminated crystals." },
+
+            // Primary crystals
+            { id: "hematite_quartz", name: "Hematite\nQuartz", type: "crystal", group: 2, price: 275, description: "Also called 'Tangerine' or 'Ferruginous Quartz'. A layer of reddish-orange Hematite (Fe₂O₃) was included during the growth of the Quartz (SiO₂). It's a hard crystal (Mohs 7)." },
+            { id: "green_fluorite", name: "Green\nFluorite", type: "crystal", group: 2, price: 600, description: "A vibrant green variety of Fluorite (CaF₂). Its color comes from trace element impurities within the crystal lattice. It is a relatively soft mineral (Mohs 4) with perfect octahedral cleavage." },
+            { id: "purple_fluorite", name: "Purple\nFluorite", type: "crystal", group: 2, price: 160, description: "Chemically identical to green fluorite (CaF₂), this specimen showcases polychromatism. Its deep purple color is due to different trace elements or natural radiation. Hardness: Mohs 4." },
+            { id: "epidote", name: "Epidote", type: "crystal", group: 2, price: 150, description: "A classic example of a metamorphic mineral. This specimen is notable for its sharp, lustrous crystal form and its association with quartz, indicating formation under significant heat and pressure." },
+
+            // Formation processes
+            { id: "hydrothermal", name: "Hydrothermal\nProcess", type: "process", group: 3, description: "Minerals precipitate from hot, water-rich fluids circulating through rock fractures. This process formed the fluorite in Múzquiz and Okorusu, and the quartz at Orange River. (Temp: 80-600°C)" },
+            { id: "metamorphic", name: "Metamorphic\nProcess", type: "process", group: 3, description: "Existing rocks are transformed by intense heat and pressure (metamorphism), causing new minerals like epidote and garnet to grow. (Temp: 200-800°C)" },
+            { id: "carbonatite", name: "Carbonatite\nIntrusion", type: "process", group: 3, description: "A rare and unusual igneous process where the magma is rich in carbonates instead of silicates. These intrusions can host unique and valuable minerals like the fluorite from Okorusu." },
+            { id: "diagenesis", name: "Sedimentary\nDiagenesis", type: "process", group: 3, description: "Chemical and physical changes in sediments after deposition. At Orange River, this process made iron available, which was later incorporated into quartz via hydrothermal activity. (Temp: 25-200°C)" },
+
+            // Associated minerals
+            { id: "calcite", name: "Calcite", type: "associated", group: 4, description: "A common carbonate mineral that often forms alongside fluorite in hydrothermal veins. Its presence can indicate the chemistry of the mineral-forming fluids." },
+            { id: "garnet", name: "Garnet", type: "associated", group: 4, description: "A typical metamorphic mineral found with epidote in skarns and schists. Different types of garnet can indicate specific pressure and temperature conditions." },
+            { id: "magnetite", name: "Magnetite", type: "associated", group: 4, description: "An iron oxide mineral often found with hematite. Its presence suggests an iron-rich environment during formation." },
+            { id: "apatite", name: "Apatite", type: "associated", group: 4, description: "A phosphate mineral commonly found in carbonatites. Its association with the Okorusu fluorite is a key indicator of that specific geological environment." }
+        ];
+
+        const links = [
+            // Location to crystal
+            { source: "orange_river", target: "hematite_quartz", value: 9 },
+            { source: "okorusu", target: "green_fluorite", value: 10 },
+            { source: "muzquiz", target: "purple_fluorite", value: 8 },
+            { source: "hakkari", target: "epidote", value: 9 },
+
+            // Process to crystal
+            { source: "hydrothermal", target: "hematite_quartz", value: 8 },
+            { source: "hydrothermal", target: "green_fluorite", value: 9 },
+            { source: "hydrothermal", target: "purple_fluorite", value: 8 },
+            { source: "metamorphic", target: "epidote", value: 9 },
+
+            // Process to location
+            { source: "diagenesis", target: "orange_river", value: 7 },
+            { source: "carbonatite", target: "okorusu", value: 9 },
+            { source: "hydrothermal", target: "muzquiz", value: 8 },
+            { source: "metamorphic", target: "hakkari", value: 8 },
+
+            // Associated minerals
+            { source: "green_fluorite", target: "calcite", value: 6 },
+            { source: "purple_fluorite", target: "calcite", value: 6 },
+            { source: "epidote", target: "garnet", value: 7 },
+            { source: "hematite_quartz", target: "magnetite", value: 7 },
+            { source: "green_fluorite", target: "apatite", value: 8 }
+        ];
+
+        // Setup
+        const width = window.innerWidth;
+        const height = window.innerHeight;
+
+        const svg = d3.select("#network-svg")
+            .attr("viewBox", [0, 0, width, height]);
+
+        const color = d3.scaleOrdinal()
+            .domain([1, 2, 3, 4])
+            .range(["#ff6b6b", "#4ecdc4", "#ffe66d", "#a8e6cf"]);
+
+        // Create tooltip
+        const tooltip = d3.select("body").append("div")
+            .attr("class", "tooltip")
+            .style("opacity", 0);
+
+        // Responsive simulation settings
+        const isMobile = width < 768;
+        const linkDistance = isMobile ? 50 : 100;
+        const chargeStrength = isMobile ? -150 : -500;
+        const collisionRadius = isMobile ? 30 : 50;
+        const nodeRadius = (d) => {
+            const base = d.type === "location" ? 20 : d.type === "crystal" ? 18 : 15;
+            return isMobile ? base * 0.75 : base;
+        };
+
+        // Force simulation
+        const simulation = d3.forceSimulation(nodes)
+            .force("link", d3.forceLink(links).id(d => d.id).distance(linkDistance))
+            .force("charge", d3.forceManyBody().strength(chargeStrength))
+            .force("center", d3.forceCenter(width / 2, height / 2))
+            .force("collision", d3.forceCollide().radius(collisionRadius))
+            .force("x", d3.forceX(width / 2).strength(0.05)) // Add a gentle pull to the horizontal center
+            .force("y", d3.forceY(height / 2).strength(0.05)); // Add a gentle pull to the vertical center
+
+        // Create links
+        const link = svg.append("g")
+            .selectAll("line")
+            .data(links)
+            .enter().append("line")
+            .attr("class", "link")
+            .attr("stroke-width", d => Math.sqrt(d.value))
+            .on("mouseover", function (event, d) {
+                tooltip.transition()
+                    .duration(200)
+                    .style("opacity", .9);
+
+                const source = nodes.find(n => n.id === d.source.id);
+                const target = nodes.find(n => n.id === d.target.id);
+
+                tooltip.html(`
+                    <strong>${source.name.replace(/\n/g, ' ')}</strong><br/>
+                    → <strong>${target.name.replace(/\n/g, ' ')}</strong><br/>
+                    Connection strength: ${d.value}/10
+                `)
+                    .style("left", (event.pageX + 10) + "px")
+                    .style("top", (event.pageY - 28) + "px");
+            })
+            .on("mouseout", function () {
+                tooltip.transition().duration(500).style("opacity", 0);
+            });
+
+        // Create nodes
+        const node = svg.append("g")
+            .selectAll("g")
+            .data(nodes)
+            .enter().append("g")
+            .call(d3.drag()
+                .on("start", dragstarted)
+                .on("drag", dragged)
+                .on("end", dragended));
+
+        node.append("circle")
+            .attr("class", "node")
+            .attr("r", nodeRadius)
+            .attr("fill", d => color(d.group))
+            .style("filter", "url(#glow)")
+            .on("mouseover", function (event, d) {
+                d3.select(this).transition()
+                    .duration(200)
+                    .attr("r", nodeRadius(d) * 1.3);
+
+                tooltip.transition()
+                    .duration(200)
+                    .style("opacity", .9);
+
+                let content = `<strong>${d.name.replace(/\n/g, ' ')}</strong><br/>Type: ${d.type}`;
+                if (d.price) content += `<br/>Value: $${d.price}`;
+                if (d.description) content += `<br/><br/><em>${d.description}</em>`;
+
+                tooltip.html(content)
+                    .style("left", (event.pageX + 10) + "px")
+                    .style("top", (event.pageY - 28) + "px");
+            })
+            .on("mouseout", function (event, d) {
+                d3.select(this).transition()
+                    .duration(200)
+                    .attr("r", nodeRadius(d));
+
+                tooltip.transition().duration(500).style("opacity", 0);
+            })
+            .on("click", function (event, d) {
+                // Highlight connected nodes
+                const connectedIds = new Set([d.id]);
+                links.forEach(link => {
+                    if (link.source.id === d.id) connectedIds.add(link.target.id);
+                    if (link.target.id === d.id) connectedIds.add(link.source.id);
+                });
+
+                node.style("opacity", n => connectedIds.has(n.id) ? 1 : 0.3);
+                link.style("opacity", l =>
+                    (connectedIds.has(l.source.id) && connectedIds.has(l.target.id)) ? 1 : 0.2
+                );
+
+                setTimeout(() => {
+                    node.style("opacity", 1);
+                    link.style("opacity", 0.6);
+                }, 3000);
+            });
+
+        node.append("text")
+            .attr("class", "node-label")
+            .attr("dy", d => isMobile ? -15 : -25) // Adjust label position based on node size
+            .text(d => d.name);
+
+        // Update simulation
+        simulation.on("tick", () => {
+            link
+                .attr("x1", d => d.source.x)
+                .attr("y1", d => d.source.y)
+                .attr("x2", d => d.target.x)
+                .attr("y2", d => d.target.y);
+
+            node
+                .attr("transform", d => {
+                    // Add boundary constraints
+                    const r = nodeRadius(d);
+                    d.x = Math.max(r + 10, Math.min(width - r - 10, d.x));
+                    d.y = Math.max(r + 30, Math.min(height - r - 10, d.y)); // Extra top margin for header
+                    return `translate(${d.x},${d.y})`;
+                });
+        });
+
+        // Drag functions
+        function dragstarted(event, d) {
+            if (!event.active) simulation.alphaTarget(0.3).restart();
+            d.fx = d.x;
+            d.fy = d.y;
+        }
+
+        function dragged(event, d) {
+            d.fx = event.x;
+            d.fy = event.y;
+        }
+
+        function dragended(event, d) {
+            if (!event.active) simulation.alphaTarget(0);
+            d.fx = null;
+            d.fy = null;
+        }
+
+        // Initial animation
+        node.style("opacity", 0)
+            .transition()
+            .duration(1000)
+            .delay((d, i) => i * 100)
+            .style("opacity", 1);
+
+        link.style("opacity", 0)
+            .transition()
+            .duration(1500)
+            .delay(800)
+            .style("opacity", 0.6);
+    </script>
+</body>
+
+</html>
